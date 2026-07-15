@@ -81,7 +81,7 @@ export async function POST(req: Request) {
     .single()
 
   // 6. Generate AI reply
-  let aiResult: { canAnswer: boolean; reply: string | null }
+  let aiResult: { canAnswer: boolean; reply: string | null; holdingMessage?: string }
   try {
     aiResult = await generateAIReply({
       apartment: booking.apartment,
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
 
   // 7b. AI couldn't answer — escalate to host (safety-net escalation from 5b already covers this)
   if (!aiResult.canAnswer) {
-    const holdingMessage = "Thanks for your message! The host will get back to you shortly."
+    const holdingMessage = aiResult.holdingMessage ?? "Thanks for your message! The host will get back to you shortly."
     try {
       await sendWhatsAppMessage(senderPhone, holdingMessage)
     } catch (err) {

@@ -20,6 +20,7 @@ interface AIReplyInput {
 interface AIReplyResult {
   canAnswer: boolean
   reply: string | null
+  holdingMessage?: string
 }
 
 export async function generateAIReply({
@@ -49,8 +50,8 @@ RULES:
 - Reply in the same language the guest is writing in
 - Be warm, friendly, and concise — this is a WhatsApp conversation
 - Only answer from the information above — never invent details
-- If the answer is not in the knowledge base, respond ONLY with the exact text: CANNOT_ANSWER
-- Do not apologize or explain when returning CANNOT_ANSWER — just return that exact string`
+- If the answer is not in the knowledge base, respond ONLY with: CANNOT_ANSWER: <a short, warm message in the guest's own language telling them you don't have that info and the host will get back to them shortly>
+- Do not include anything else in that response — no apology, no explanation, just the CANNOT_ANSWER line`
 
   const response = await getClient().chat.completions.create({
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
@@ -63,8 +64,9 @@ RULES:
 
   const replyText = response.choices[0]?.message?.content?.trim() || 'CANNOT_ANSWER'
 
-  if (replyText === 'CANNOT_ANSWER') {
-    return { canAnswer: false, reply: null }
+  if (replyText.startsWith('CANNOT_ANSWER')) {
+    const holdingMessage = replyText.slice('CANNOT_ANSWER'.length).replace(/^[:\s]+/, '').trim()
+    return { canAnswer: false, reply: null, holdingMessage: holdingMessage || undefined }
   }
 
   // TODO: if guest.language is null, detect language from replyText and update the guests row
