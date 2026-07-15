@@ -26,7 +26,7 @@ Last updated: 2026-07-15
 
 **Verified for real on 2026-07-15**: sent an actual WhatsApp message from the user's phone to the connected test number; it correctly triggered a webhook call, an OpenAI-generated answer pulled from the seeded knowledge base, a real reply sent back over WhatsApp via WATI, and correct logging in the database. See §5.2/§5.3 for the setup details and §5.1 for the earlier local-only (no real WATI) verification.
 
-**Current caveat:** this is all running through `ngrok`, a tool that gives a local laptop a temporary public internet address, since WATI needs to reach `localhost:3000` from the outside world. That's a stand-in for a real deployment — production will run on Vercel with a stable URL instead (see remaining steps in §6).
+**Now running in production**: deployed on Vercel (`https://host-ai-ebon.vercel.app`), WATI's webhook points at that stable URL — `ngrok` is no longer in the loop (see §5.6). The remaining open item is optional (see §6).
 
 ---
 
