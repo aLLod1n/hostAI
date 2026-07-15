@@ -32,7 +32,7 @@ Last updated: 2026-07-15
 
 ## 1. Where we are (one-liner)
 
-MVP is **code-complete, builds/lints/type-checks clean, and the core bot pipeline has been verified working end-to-end with a real WhatsApp message** through real WATI credentials, a Meta free test number (`+15553798073`), and an ngrok tunnel exposing `/api/webhook/whatsapp`. AI provider is **OpenAI**, not Anthropic Claude as `hostAI plan.md` specifies (deviation done at user's request). Project is now on GitHub (`github.com/aLLod1n/hostAI`, `main`). Remaining work is deployment (Vercel Pro) and template approval for the no-booking fallback path — see §6.
+**Deployed to production and verified working end-to-end.** MVP is code-complete, builds/lints/type-checks clean, live at `https://host-ai-ebon.vercel.app` on Vercel **Hobby** (not Pro — see §5.5), with WATI's webhook pointed at it and a confirmed real request round-tripping through webhook auth → async hand-off → booking lookup → OpenAI → KB match → DB writes, all within the 10s Hobby timeout. AI provider is **OpenAI**, not Anthropic Claude as `hostAI plan.md` specifies (deviation done at user's request). Project is on GitHub (`github.com/aLLod1n/hostAI`, `main`), connected to Vercel for deploys. Remaining work is the optional `no_booking_fallback` template approval — see §6.
 
 ---
 
@@ -117,12 +117,20 @@ This confirms the full pipeline — webhook auth → async handoff → booking l
 - **Decision**: not worth pursuing further right now — the pipeline's correctness is already proven (real webhook receipt, correct DB lookups, correct OpenAI answers, correct escalation creation, WATI API accepting sends). Actual phone delivery will naturally work once a real (non-test) number is connected for production, which needs to happen at deployment time anyway. Verify DB rows directly (Supabase Table Editor / SQL Editor on `messages`/`escalations`, or this app's own Inbox page) instead of expecting replies to arrive on WhatsApp locally.
 - ngrok's free-tier URL changes every restart — when it changes, WATI emails "Action Required! Your webhooks are failing" until the URL is updated in both `.env.local` (`NEXT_PUBLIC_APP_URL`) and the WATI webhook config. Happened once already; resolved.
 
+### 5.6 Production deployment + verification (done 2026-07-15)
+
+- Deployed to Vercel on the **Hobby** plan (see §5.5 item 1 for the Pro-vs-Hobby decision) at `https://host-ai-ebon.vercel.app`. Repo `github.com/aLLod1n/hostAI` connected for git-push deploys.
+- Env vars copied into Vercel from `.env.local`; `NEXT_PUBLIC_APP_URL` set to the production URL (this one has to point at the real deployed domain, not ngrok, since it's what `/api/webhook/whatsapp` calls back into for the async hand-off).
+- WATI's webhook URL updated from the ngrok URL to `https://host-ai-ebon.vercel.app/api/webhook/whatsapp?secret=<WATI_WEBHOOK_SECRET>`.
+- **Verified live**: root URL correctly redirects unauthenticated requests to `/login` (route guard working). Webhook auth confirmed (401 without `?secret=`, 200 with it). Sent a real webhook payload end-to-end: inbound message logged, OpenAI answered correctly from the KB (`"The wifi password is 12345678."`), outbound message logged, full round-trip in ~4s — comfortably inside the Hobby 10s cap. The safety-net escalation (§5.5 item 1) was correctly deleted since the AI answered successfully, confirming that logic works in production too.
+- User separately sent a real WhatsApp message ("როგორ ხარ ?") that correctly escalated (not KB-covered) — sitting as an open escalation in the Inbox now, along with two earlier ones (`"hey yoyu"`, `"hello"`) awaiting a host reply.
+
 ### 5.5 Remaining gaps
 
-1. Not deployed. **Decision 2026-07-15: deploying on Vercel Hobby (free), not Pro** — `hostAI plan.md` assumed Pro was required for `maxDuration = 60` (Hobby caps at 10s), but local timings showed the full pipeline (DB lookup + OpenAI + WATI send) comfortably fits under 10s in the normal case. `app/api/agent/process/route.ts` now sets `maxDuration = 10` and opens a safety-net `escalations` row (status `open`) *before* calling OpenAI/WATI, deleting it if the AI answers successfully — so a hard Hobby-timeout kill mid-request leaves the question visible in the host's inbox instead of silently vanishing (previously the escalation was only created after a successful `CANNOT_ANSWER` response, which a mid-flight kill would never reach). Revisit Pro only if Hobby's 10s cap proves too tight under real load. Also still needed: a stable webhook URL (ngrok's free-tier URL changes on every restart and isn't suitable beyond local testing).
-2. `no_booking_fallback` WhatsApp template not yet created/approved in WATI — only matters for guests who message with no active booking; the happy-path (active booking, KB-covered and non-KB-covered questions) is fully verified via DB inspection.
-3. Actual delivery to a real phone is blocked locally by Meta's test-number recipient-allowlist restriction (see §5.4) — will resolve naturally with a real production number, not worth fixing for local dev.
-4. ~~Project is not yet a git repository~~ — done 2026-07-15: initialized locally and pushed to `github.com/aLLod1n/hostAI` (`main` branch). `.env*`, `node_modules`, local dev logs (`dev-server.log`, `ngrok.log`), and `.claude/settings.local.json` are all gitignored — no secrets committed. Next: connect this repo to Vercel.
+1. ~~Not deployed~~ — done 2026-07-15, see §5.6. **Decision: deployed on Vercel Hobby (free), not Pro** — `hostAI plan.md` assumed Pro was required for `maxDuration = 60` (Hobby caps at 10s), but real production timings show the full pipeline (DB lookup + OpenAI + WATI send) completing in ~4s, comfortably under 10s. `app/api/agent/process/route.ts` sets `maxDuration = 10` and opens a safety-net `escalations` row (status `open`) *before* calling OpenAI/WATI, deleting it if the AI answers successfully — so a hard Hobby-timeout kill mid-request leaves the question visible in the host's inbox instead of silently vanishing. Revisit Pro only if Hobby's 10s cap proves too tight under real load.
+2. `no_booking_fallback` WhatsApp template not yet created/approved in WATI — only matters for guests who message with no active booking; the happy-path (active booking, KB-covered and non-KB-covered questions) is fully verified in production, see §5.6.
+3. Actual delivery to arbitrary phones is still blocked by Meta's test-number recipient-allowlist restriction (see §5.4) — unrelated to deployment, will resolve once a real (non-test) WhatsApp Business number replaces the Meta free test number.
+4. ~~Project is not yet a git repository~~ — done 2026-07-15: initialized locally and pushed to `github.com/aLLod1n/hostAI` (`main` branch). `.env*`, `node_modules`, local dev logs (`dev-server.log`, `ngrok.log`), and `.claude/settings.local.json` are all gitignored — no secrets committed.
 
 ---
 
@@ -137,9 +145,10 @@ This confirms the full pipeline — webhook auth → async handoff → booking l
 7. ~~Sign up for WATI, get a test number, set up ngrok, register the webhook~~ — done, see §5.2.
 8. ~~Send a real WhatsApp message and confirm the live loop~~ — done, see §5.2. **The bot is fully working end-to-end with real WhatsApp messages as of 2026-07-15.**
 9. ~~Push project to GitHub~~ — done, see §5.5 item 4 (`github.com/aLLod1n/hostAI`, `main`).
-10. Connect the GitHub repo to Vercel (**Hobby plan, not Pro** — see §5.5 item 1), deploy, copy env vars in, point WATI's webhook URL at the production domain (with a stable URL, not ngrok's free-tier one).
+10. ~~Connect the GitHub repo to Vercel, deploy, copy env vars in, point WATI's webhook URL at the production domain~~ — done 2026-07-15, see §5.6. **Live at `https://host-ai-ebon.vercel.app` on Vercel Hobby, verified working end-to-end in production.**
 11. (Optional) Create and get Meta approval for a `no_booking_fallback` WhatsApp template, for guests without an active booking.
 12. (Optional/deferred per plan) Stripe billing logic — DB columns exist (`hosts.stripe_customer_id`, `subscription_status`) but no billing logic is implemented, matching the plan's explicit "scaffold only" instruction.
+13. Host has 3 open escalations waiting in the Inbox (`"როგორ ხარ ?"`, `"hey yoyu"`, `"hello"`) from testing — reply to or clear these via the Inbox page when convenient (test data, not urgent).
 
 ---
 
