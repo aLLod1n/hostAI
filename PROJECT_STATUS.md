@@ -119,7 +119,7 @@ This confirms the full pipeline — webhook auth → async handoff → booking l
 
 ### 5.5 Remaining gaps
 
-1. Not deployed → production needs **Vercel Pro** (plan requires `maxDuration = 60` on `/api/agent/process`; Hobby caps at 10s) and a stable webhook URL (ngrok's free-tier URL changes on every restart and isn't suitable beyond local testing).
+1. Not deployed. **Decision 2026-07-15: deploying on Vercel Hobby (free), not Pro** — `hostAI plan.md` assumed Pro was required for `maxDuration = 60` (Hobby caps at 10s), but local timings showed the full pipeline (DB lookup + OpenAI + WATI send) comfortably fits under 10s in the normal case. `app/api/agent/process/route.ts` now sets `maxDuration = 10` and opens a safety-net `escalations` row (status `open`) *before* calling OpenAI/WATI, deleting it if the AI answers successfully — so a hard Hobby-timeout kill mid-request leaves the question visible in the host's inbox instead of silently vanishing (previously the escalation was only created after a successful `CANNOT_ANSWER` response, which a mid-flight kill would never reach). Revisit Pro only if Hobby's 10s cap proves too tight under real load. Also still needed: a stable webhook URL (ngrok's free-tier URL changes on every restart and isn't suitable beyond local testing).
 2. `no_booking_fallback` WhatsApp template not yet created/approved in WATI — only matters for guests who message with no active booking; the happy-path (active booking, KB-covered and non-KB-covered questions) is fully verified via DB inspection.
 3. Actual delivery to a real phone is blocked locally by Meta's test-number recipient-allowlist restriction (see §5.4) — will resolve naturally with a real production number, not worth fixing for local dev.
 4. ~~Project is not yet a git repository~~ — done 2026-07-15: initialized locally and pushed to `github.com/aLLod1n/hostAI` (`main` branch). `.env*`, `node_modules`, local dev logs (`dev-server.log`, `ngrok.log`), and `.claude/settings.local.json` are all gitignored — no secrets committed. Next: connect this repo to Vercel.
@@ -137,7 +137,7 @@ This confirms the full pipeline — webhook auth → async handoff → booking l
 7. ~~Sign up for WATI, get a test number, set up ngrok, register the webhook~~ — done, see §5.2.
 8. ~~Send a real WhatsApp message and confirm the live loop~~ — done, see §5.2. **The bot is fully working end-to-end with real WhatsApp messages as of 2026-07-15.**
 9. ~~Push project to GitHub~~ — done, see §5.5 item 4 (`github.com/aLLod1n/hostAI`, `main`).
-10. Confirm Vercel Pro plan, connect the GitHub repo, deploy, point WATI's webhook URL at the production domain (with a stable URL, not ngrok's free-tier one).
+10. Connect the GitHub repo to Vercel (**Hobby plan, not Pro** — see §5.5 item 1), deploy, copy env vars in, point WATI's webhook URL at the production domain (with a stable URL, not ngrok's free-tier one).
 11. (Optional) Create and get Meta approval for a `no_booking_fallback` WhatsApp template, for guests without an active booking.
 12. (Optional/deferred per plan) Stripe billing logic — DB columns exist (`hosts.stripe_customer_id`, `subscription_status`) but no billing logic is implemented, matching the plan's explicit "scaffold only" instruction.
 

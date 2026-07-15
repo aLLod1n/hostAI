@@ -4,7 +4,7 @@ import { generateAIReply } from '@/lib/agent/ai'
 import { sendWhatsAppMessage, sendWhatsAppTemplateMessage } from '@/lib/agent/whatsapp'
 import { WATIWebhookPayload } from '@/types'
 
-export const maxDuration = 60 // requires Vercel Pro
+export const maxDuration = 10 // Vercel Hobby plan cap (Pro allows up to 60s if this proves too tight)
 
 export async function POST(req: Request) {
   const secret = req.headers.get('x-internal-secret')
@@ -62,6 +62,24 @@ export async function POST(req: Request) {
     .update({ last_seen: new Date().toISOString() })
     .eq('id', booking.guest.id)
 
+  // 5b. Open a safety-net escalation before calling out to OpenAI/WATI. On Vercel Hobby
+  // (10s cap) a slow AI/WATI call can get the function killed mid-flight with no chance
+  // to run any catch/cleanup code — this guarantees the host still sees the question in
+  // the inbox even if that happens, instead of the message silently vanishing. Deleted
+  // below if the AI answers successfully.
+  const { data: safetyEscalation } = await supabase
+    .from('escalations')
+    .insert({
+      message_id: inboundMessage.id,
+      apartment_id: booking.apartment.id,
+      guest_id: booking.guest.id,
+      booking_id: booking.booking.id,
+      guest_question: messageText,
+      status: 'open',
+    })
+    .select('id')
+    .single()
+
   // 6. Generate AI reply
   let aiResult: { canAnswer: boolean; reply: string | null }
   try {
@@ -96,9 +114,13 @@ export async function POST(req: Request) {
     })
     // Increment KB usage counter for this apartment
     await supabase.rpc('increment_kb_times_used', { p_apartment_id: booking.apartment.id })
+    // AI handled it — the safety-net escalation from step 5b wasn't needed
+    if (safetyEscalation) {
+      await supabase.from('escalations').delete().eq('id', safetyEscalation.id)
+    }
   }
 
-  // 7b. AI couldn't answer — escalate to host
+  // 7b. AI couldn't answer — escalate to host (safety-net escalation from 5b already covers this)
   if (!aiResult.canAnswer) {
     const holdingMessage = "Thanks for your message! The host will get back to you shortly."
     try {
@@ -106,15 +128,6 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error('[Agent] Failed to send holding message:', err)
     }
-
-    await supabase.from('escalations').insert({
-      message_id: inboundMessage.id,
-      apartment_id: booking.apartment.id,
-      guest_id: booking.guest.id,
-      booking_id: booking.booking.id,
-      guest_question: messageText,
-      status: 'open',
-    })
 
     await logMessage({
       supabase,
