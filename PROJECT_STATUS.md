@@ -117,6 +117,10 @@ This confirms the full pipeline — webhook auth → async handoff → booking l
 - **Decision**: not worth pursuing further right now — the pipeline's correctness is already proven (real webhook receipt, correct DB lookups, correct OpenAI answers, correct escalation creation, WATI API accepting sends). Actual phone delivery will naturally work once a real (non-test) number is connected for production, which needs to happen at deployment time anyway. Verify DB rows directly (Supabase Table Editor / SQL Editor on `messages`/`escalations`, or this app's own Inbox page) instead of expecting replies to arrive on WhatsApp locally.
 - ngrok's free-tier URL changes every restart — when it changes, WATI emails "Action Required! Your webhooks are failing" until the URL is updated in both `.env.local` (`NEXT_PUBLIC_APP_URL`) and the WATI webhook config. Happened once already; resolved.
 
+### 5.7 Holding message not localized (fixed 2026-07-15)
+
+Noticed in production: a Georgian guest question ("როგორ ხარ ?") correctly triggered an escalation, but the holding message sent back was a hardcoded English string ("Thanks for your message! The host will get back to you shortly.") — inconsistent with normal AI-answered replies, which already mirror the guest's language via the system prompt's "Reply in the same language the guest is writing in" rule. Fixed by reusing the same OpenAI call: the `CANNOT_ANSWER` sentinel now returns `CANNOT_ANSWER: <holding message translated into the guest's language>` (`lib/agent/ai.ts`), parsed and used in `app/api/agent/process/route.ts`, falling back to the English default if the model omits it. No extra API round-trip. Verified live: a Georgian non-KB question now gets a Georgian holding message back.
+
 ### 5.6 Production deployment + verification (done 2026-07-15)
 
 - Deployed to Vercel on the **Hobby** plan (see §5.5 item 1 for the Pro-vs-Hobby decision) at `https://host-ai-ebon.vercel.app`. Repo `github.com/aLLod1n/hostAI` connected for git-push deploys.
