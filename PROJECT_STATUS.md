@@ -145,18 +145,18 @@ This confirms the full pipeline — webhook auth → async handoff → booking l
 
 ## 7. WATI signup + local wiring walkthrough
 
-1. **Create a WATI account** at wati.io (trial or paid). You'll get access to a WhatsApp Business number — either WATI's shared sandbox number for testing, or you connect your own Meta-approved WhatsApp Business number.
-2. **Get API credentials**: in the WATI dashboard, go to the **API Docs** section. Copy the API endpoint (format like `https://live-mt-server.wati.io/<ACCOUNT_ID>`) into `WATI_API_URL`, and the bearer token into `WATI_API_TOKEN` in `.env.local`.
-3. **Install and start ngrok**: `ngrok http 3000`, copy the `https://...ngrok.io` forwarding URL it prints.
-4. **Point the app at the tunnel**: set `NEXT_PUBLIC_APP_URL` in `.env.local` to that ngrok URL, then restart `npm run dev` (the webhook route calls back into `/api/agent/process` using this value).
-5. **Register the webhook in WATI**: dashboard → **Connectors** → **Webhooks** → **Add Webhook**.
-   - URL: `<ngrok-url>/api/webhook/whatsapp`
-   - Status: Enabled
-   - Events: select "Message Received" (or equivalent inbound-message event)
-   - Headers: add a custom header `x-wati-secret` = the same value as `WATI_WEBHOOK_SECRET` in `.env.local`. A placeholder value is already generated there for local testing — swap it for a fresh one if you prefer, just make sure both sides match.
-   - Use WATI's "Trigger sample callback" button first to confirm connectivity before testing with a real message.
-6. **Point an apartment at the real number**: update the test apartment's (or a real one's) `whatsapp_number` column to the WATI number in E.164 format (e.g. `+14155552671`) — the bot looks up which host owns a message by matching `channelPhoneNumber` against this column.
-7. **(Optional, for the no-active-booking path)** create and get Meta-approved a WhatsApp template named `no_booking_fallback` in WATI's Templates section — approval can take hours, so start it early if you want that path tested. Not required for testing the main active-booking flow.
-8. **Send a real WhatsApp message** from your phone to the connected WATI number, then check `npm run dev`'s terminal output and the `messages`/`escalations` tables in Supabase to confirm it processed correctly.
+**Steps 1–6 and 8 are done** (see §3, §5.2, §5.4) — kept here as a reference for redoing the local wiring (e.g. after an ngrok restart changes the tunnel URL) rather than as an open TODO list.
 
-I can't do steps 1 and 7 (account signup, template approval) — those require your WATI account. Once you've got `WATI_API_URL`/`WATI_API_TOKEN` and the webhook registered, tell me and I'll help verify the response format from a real send call and debug anything that doesn't work.
+1. ~~**Create a WATI account** at wati.io (trial or paid).~~ Done — trial account created, using Meta's free test number `+15553798073`.
+2. ~~**Get API credentials**~~ Done — `WATI_API_URL`/`WATI_API_TOKEN` set in `.env.local`, live-verified (see §3).
+3. **Install and start ngrok**: `ngrok http 3000`, copy the `https://...ngrok-free.app` forwarding URL it prints. **Needed again any time the tunnel restarts** — the free-tier URL isn't stable.
+4. **Point the app at the tunnel**: set `NEXT_PUBLIC_APP_URL` in `.env.local` to that ngrok URL, then restart `npm run dev`.
+5. **Register the webhook in WATI**: dashboard → **Connectors** → **Webhooks** → **Add Webhook**.
+   - URL: `<ngrok-url>/api/webhook/whatsapp?secret=<WATI_WEBHOOK_SECRET>` — the secret goes in as a **query param**, not a header. WATI's "Add Webhook" form has no custom-headers field, so the `x-wati-secret` header approach doesn't work (see §2, "WATI webhook secret delivery").
+   - Status: Enabled
+   - Events: select "Message Received"
+   - Use WATI's "Trigger sample callback" button first to confirm connectivity before testing with a real message.
+   - **Needed again any time the ngrok URL changes.**
+6. ~~**Point an apartment at the real number**~~ Done — the real apartment ("bezhan kalichava") is linked to `+15553798073` (see §5.4).
+7. **(Optional, still pending)** create and get Meta-approved a WhatsApp template named `no_booking_fallback` in WATI's Templates section — only needed for the no-active-booking fallback path; approval can take hours. Requires your WATI account, I can't do this step.
+8. ~~**Send a real WhatsApp message**~~ Done — confirmed working end-to-end 2026-07-15 (see §5.2, §5.4). Note: delivery to arbitrary phones is currently blocked by Meta's test-number allowlist restriction — verify via the Supabase `messages`/`escalations` tables or the app's own Inbox page instead of expecting a reply on WhatsApp.
