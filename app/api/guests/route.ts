@@ -1,17 +1,10 @@
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/server'
 import { ApiResponse, Guest } from '@/types'
 
-async function getUser() {
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  return user
-}
-
 export async function GET() {
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('guests')
     .select('*')

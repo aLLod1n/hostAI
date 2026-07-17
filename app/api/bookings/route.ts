@@ -1,18 +1,11 @@
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/server'
 import { ApiResponse, BookingWithRelations } from '@/types'
 import { normalizePhone } from '@/lib/utils'
 
-async function getUser() {
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  return user
-}
-
 export async function GET() {
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const { data: aptIds } = await supabase
     .from('apartments')
     .select('id')
@@ -31,10 +24,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const { apartment_id, phone, guest_name, check_in, check_out, source } = await req.json()
   const normalizedPhone = normalizePhone(phone)
 

@@ -1,18 +1,11 @@
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/server'
 import { ApiResponse } from '@/types'
-
-async function getUser() {
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  return user
-}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const body = await req.json()
   const { data, error } = await supabase
     .from('bookings')
@@ -27,10 +20,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const { error } = await supabase.from('bookings').delete().eq('id', id)
   if (error) return Response.json({ data: null, error: error.message } satisfies ApiResponse<null>, { status: 500 })
   return Response.json({ data: { success: true }, error: null })

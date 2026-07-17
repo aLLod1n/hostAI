@@ -2,7 +2,7 @@
 
 > **Keep this file current.** Any time a change is made to this project (code, schema, env config, deployment), update the relevant section below in the same piece of work. See the rule in `AGENTS.md`.
 
-Last updated: 2026-07-15
+Last updated: 2026-07-18
 
 ---
 
@@ -50,6 +50,7 @@ Last updated: 2026-07-15
 | WATI outbound send request format | ✅ fixed 2026-07-15 — `hostAI plan.md`/original code sent `messageText` as a JSON body field on `sendSessionMessage`, and `whatsappNumber` as a JSON body field on `sendTemplateMessage` (missing the required `channel_number`/`parameters` fields entirely). WATI's real API (confirmed against `docs.wati.io/reference/post_api-v1-sendsessionmessage-whatsappnumber` and `.../post_api-v1-sendtemplatemessage`) expects `messageText` as a **query param** on session sends, and on template sends expects `whatsappNumber` as a **query param** plus a JSON body with `template_name`, `broadcast_name`, `channel_number` (required), and `parameters` (required array). Fixed in `lib/agent/whatsapp.ts`; `sendWhatsAppTemplateMessage` now takes a `channelPhoneNumber` param, threaded through from `app/api/agent/process/route.ts`'s existing `receivingPhone`. Not yet tested against a real WATI account (no credentials) — only verified it type-checks/builds; **re-test this once WATI creds exist** |
 | Test data in DB | ⚠️ one seeded test host/apartment/guest/booking from the §5.1 verification run still present in the live Supabase project (harmless, not linked to a real Supabase Auth user so it's not reachable via dashboard login). Apartment `whatsapp_number` updated to the real Meta test number `+15553798073`; guest `phone` updated to the user's real WhatsApp number `+995598600242` so a real inbound message will match — safe to leave or delete manually via SQL once real testing is done |
 | WATI webhook secret delivery | ✅ fixed 2026-07-15 — WATI's "Add Webhook" UI (Connectors → Webhooks) has no custom-headers field (unlike what WATI's Zapier-integration docs describe for a different webhook type), so the `x-wati-secret` header approach from `hostAI plan.md` doesn't work here. Changed `app/api/webhook/whatsapp/route.ts` to accept the secret as a `?secret=` query param on the webhook URL (falling back to the header check in case a future WATI plan/UI adds header support). Verified locally: request with no secret → 401, request with `?secret=<value>` → 200 |
+| Dashboard API route auth boilerplate | ✅ deduped 2026-07-18 — every dashboard-facing route under `app/api/{apartments,bookings,guests,escalations,knowledge-base}/**` repeated the same local `getUser()` (cookie-session check) plus a separate `createServiceClient()` call. Added `requireUser()` to `lib/supabase/server.ts` (returns `{ user, supabase }` in one call) and switched all 9 route files to it. No behavior change — `npx tsc --noEmit` clean. `app/api/agent/process/route.ts` intentionally still calls `createServiceClient()` directly since it has no logged-in user (internal webhook route) |
 
 ---
 

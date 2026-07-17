@@ -1,12 +1,10 @@
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/server'
 import { ApiResponse, Apartment } from '@/types'
 
 export async function GET() {
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('apartments')
     .select('*')
@@ -18,11 +16,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const body = await req.json()
   console.log('[apartments POST] user.id:', user.id)
   console.log('[apartments POST] svc key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 30))

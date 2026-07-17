@@ -29,3 +29,12 @@ export function createServiceClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
+
+// Shared by dashboard API routes: checks the cookie session, then hands back
+// a service-role client for the actual query (RLS is bypassed intentionally —
+// every query still filters by user.id/host_id itself).
+export async function requireUser() {
+  const authClient = await createServerSupabaseClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  return { user, supabase: createServiceClient() }
+}

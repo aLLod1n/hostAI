@@ -1,18 +1,11 @@
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/server'
 import { ApiResponse, Apartment } from '@/types'
-
-async function getUser() {
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  return user
-}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('apartments')
     .select('*')
@@ -26,10 +19,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const body = await req.json()
   const { data, error } = await supabase
     .from('apartments')
@@ -45,10 +37,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
-  const supabase = createServiceClient()
   const { error } = await supabase
     .from('apartments')
     .delete()

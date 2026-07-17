@@ -1,20 +1,13 @@
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/server'
 import { ApiResponse, EscalationWithRelations } from '@/types'
 
-async function getUser() {
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  return user
-}
-
 export async function GET(req: Request) {
-  const user = await getUser()
+  const { user, supabase } = await requireUser()
   if (!user) return Response.json({ data: null, error: 'Unauthorized' } satisfies ApiResponse<null>, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
 
-  const supabase = createServiceClient()
   const { data: aptIds } = await supabase
     .from('apartments')
     .select('id')
